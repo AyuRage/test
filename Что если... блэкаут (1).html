@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Что если... блэкаут</title>
+<style>
+:root{--bg:#f4f4f4;--fg:#111}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0f;--fg:#eee}}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);box-sizing:border-box}
+canvas{height:min(88vh,calc(100vw*16/9));aspect-ratio:9/16;border-radius:14px;background:#000;cursor:pointer}
+button{font:inherit;padding:8px 16px;border-radius:20px;border:1px solid #888;background:transparent;color:var(--fg)}
+</style></head><body>
+<canvas id="c" width="540" height="960"></canvas>
+<div><button id="b">▶ Смотреть</button> <button id="m">🔊</button></div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d'),W=540,H=960,DUR=120;
+const L=[
+[0,"Привет. Представим: прямо сейчас во всём мире пропадает электричество. Что если... свет просто не вернётся?","💡"],
+[10,"Первый час. Город гаснет за секунды. Светофоры мертвы, на перекрёстках пробки.","🚦"],
+[20,"Лифты застряли между этажами, метро стоит. Телефоны ещё живут, но заряд тает.","🛗"],
+[30,"Больницы переходят на генераторы. Всё остальное просто ждёт.","🏥"],
+[40,"Прошли сутки. Холодильники потихоньку теплеют, еда начинает портиться.","🥛"],
+[52,"Банкоматы молчат, магазины закрыты. Насосы встали, вода в кранах заканчивается.","🚰"],
+[66,"Вышки связи садятся одна за другой. Телефон теперь просто тёмный кирпичик.","📱"],
+[80,"Неделя. Топливо для генераторов кончилось, даже у больниц.","⛽"],
+[92,"Люди собираются во дворах, делятся водой, готовят на кострах.","🔥"],
+[104,"Зато небо над городом впервые за век полно звёзд.","✨"],
+[114,"Вот что бывает, когда выключается свет. Береги заряд, и держи под рукой фонарик.","🔦"]];
+const S=[[0,10,""],[10,40,"1 ЧАС"],[40,80,"24 ЧАСА"],[80,120,"7 ДНЕЙ"]];
+let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;
+const B=[];for(let i=0,px=-10;px<W;i++){const w=50+r()*40,h=220+r()*300;B.push({x:px,w,h,off:7+r()*2.5,seed:r()});px+=w+4}
+B.forEach(b=>{b.win=[];for(let yy=18;yy<b.h-14;yy+=26)for(let xx=8;xx<b.w-14;xx+=20)b.win.push({x:xx,y:yy,o:b.off+r()*1.5,on:r()>.15})});
+const stars=Array.from({length:70},()=>({x:r()*W,y:r()*480,p:r()*6}));
+const cars=Array.from({length:5},(_,i)=>({x:i*120,c:['#e44','#4ae','#ec4','#8d5','#c6e'][i]}));
+const lerp=(a,b,t)=>a+(b-a)*Math.max(0,Math.min(1,t));
+let t=0,playing=false,t0=0,last=-1,mute=false,voice=null;
+function pickVoice(){const v=speechSynthesis.getVoices();voice=v.find(a=>a.lang&&a.lang.startsWith('ru'))||null}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+let ac,mg,dr,dro,bo=false;
+function aInit(){if(ac){ac.resume();return}try{ac=new(window.AudioContext||window.webkitAudioContext)();mg=ac.createGain();mg.gain.value=mute?0:.5;mg.connect(ac.destination);dro=ac.createOscillator();dro.type='sawtooth';dro.frequency.value=110;const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=400;dr=ac.createGain();dr.gain.value=.06;dro.connect(f);f.connect(dr);dr.connect(mg);dro.start()}catch(e){ac=null}}
+function tone(f,d,v){if(!ac||mute)return;const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(g);g.connect(mg);o.start();o.stop(ac.currentTime+d)}
+function say(txt){if(mute||!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='ru-RU';u.rate=.95;u.pitch=.95;if(voice)u.voice=voice;speechSynthesis.speak(u)}
+function wrap(txt,mw){const w=txt.split(' '),o=[];let l='';for(const a of w){if(x.measureText(l+a).width>mw&&l){o.push(l.trim());l=''}l+=a+' '}o.push(l.trim());return o}
+function draw(){
+const dark=lerp(0,1,(t-7)/3);
+const g=x.createLinearGradient(0,0,0,H);
+const c1=[lerp(255,5,dark),lerp(150,7,dark),lerp(90,18,dark)].map(Math.round),c2=[lerp(60,10,dark),lerp(50,12,dark),lerp(110,28,dark)].map(Math.round);
+g.addColorStop(0,`rgb(${c2})`);g.addColorStop(1,`rgb(${c1})`);x.fillStyle=g;x.fillRect(0,0,W,H);
+const sa=lerp(0,1,(t-9)/6)*(t>100?1.4:1);
+stars.forEach(a=>{x.globalAlpha=Math.min(1,sa*(.5+.5*Math.sin(t*2+a.p)));x.fillStyle='#fff';x.fillRect(a.x,a.y,2,2)});x.globalAlpha=1;
+x.fillStyle=`rgba(255,250,220,${.2+dark*.8})`;x.beginPath();x.arc(430,150,34,0,7);x.fill();
+const gy=720;
+B.forEach(b=>{const by=gy-b.h;x.fillStyle=`rgb(${Math.round(lerp(60,14,dark))},${Math.round(lerp(60,16,dark))},${Math.round(lerp(80,26,dark))})`;x.fillRect(b.x,by,b.w,b.h);
+b.win.forEach(w=>{const lit=w.on&&t<w.o;x.fillStyle=lit?'#ffd45e':(t>92&&w.on&&Math.sin(t*3+w.x)>.97?'#fff6':'#12151f');x.fillRect(b.x+w.x,by+w.y,12,16)})});
+x.fillStyle='#1b1d26';x.fillRect(0,gy,W,H-gy);x.fillStyle='#333';x.fillRect(0,gy+60,W,6);
+cars.forEach((c,i)=>{const mv=t<8?t*60:480;let px=((c.x+mv*(1+i*.15))%(W+100))-60;if(t>=8)px=((c.x+480*(1+i*.15))%(W+100))-60+(t>10?0:0);
+const y=gy+20+(i%2)*44;x.fillStyle=c.c;x.fillRect(px,y,54,22);x.fillStyle='#222';x.fillRect(px+10,y-10,32,12);
+if(t<8){x.fillStyle='#fff8';x.fillRect(px+54,y+4,26,10)}});
+const tl=t<4?'#4d4':t<7?'#ed4':t<8?'#e44':'#333';
+x.fillStyle='#222';x.fillRect(484,gy-100,10,100);x.fillRect(476,gy-130,26,40);x.fillStyle=t<8?(t%2<1?'#e44':'#4d4'):'#333';x.beginPath();x.arc(489,gy-120,7,0,7);x.fill();
+if(t>90){for(let k=0;k<3;k++){const fx=90+k*190,fl=.7+.3*Math.sin(t*9+k*2);const gg=x.createRadialGradient(fx,gy+80,2,fx,gy+80,120*fl);gg.addColorStop(0,'rgba(255,160,40,.8)');gg.addColorStop(1,'rgba(255,100,0,0)');x.fillStyle=gg;x.fillRect(fx-130,gy-60,260,280);x.font='34px serif';x.textAlign='center';x.fillText('🔥',fx,gy+90);x.fillText(k%2?'🧑‍🤝‍🧑':'🧍',fx+36,gy+92)}}
+x.fillStyle=`rgba(0,0,0,${lerp(0,.25,dark)})`;
+let sc=S.findIndex(a=>t>=a[0]&&t<a[1]);if(sc<0)sc=3;
+x.textAlign='center';
+if(t<6){x.fillStyle='#fff';x.globalAlpha=Math.min(1,t)*(t>5?6-t:1);x.font='bold 56px system-ui';x.fillText('Что если...',W/2,130);x.font='bold 40px system-ui';x.fillText('БЛЭКАУТ',W/2,185);x.globalAlpha=1}
+else if(S[sc][2]){x.fillStyle='#fff';x.font='bold 60px system-ui';x.fillText(S[sc][2],W/2,100)}
+x.fillStyle='#fff3';x.fillRect(40,28,W-80,8);x.fillStyle='#ffd45e';x.fillRect(40,28,(W-80)*t/DUR,8);
+[10,40,80].forEach(m=>{x.fillStyle='#fff';x.beginPath();x.arc(40+(W-80)*m/DUR,32,8,0,7);x.fill()});
+let li=0;L.forEach((a,i)=>{if(t>=a[0])li=i});const ln=L[li],lt=t-ln[0];
+const pop=Math.min(1,lt*3),bob=Math.sin(t*3)*8;
+x.save();x.translate(W/2,350+bob);x.scale(.6+.4*pop,.6+.4*pop);x.font='120px serif';x.globalAlpha=pop;x.fillStyle='#fff';x.fillText(ln[2],0,0);x.restore();x.globalAlpha=1;
+x.font='bold 28px system-ui';const ls=wrap(ln[1],W-80);const bh=ls.length*38+24;
+x.fillStyle='rgba(0,0,0,.65)';x.fillRect(24,H-bh-50,W-48,bh);x.fillStyle='#fff';ls.forEach((q,i)=>x.fillText(q,W/2,H-bh-50+42+i*38));
+if(!playing){x.fillStyle='rgba(0,0,0,.4)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.font='bold 120px system-ui';x.fillText(t>=DUR?'↻':'▶',W/2,H/2+40)}
+return li}
+function loop(){if(playing){t=(performance.now()-t0)/1000;if(t>=DUR){t=DUR;playing=false;b.textContent='↻ Заново';speechSynthesis.cancel()}}
+const li=draw();if(playing&&li!==last){last=li;say(L[li][1]);tone(660,.5,.08)}
+if(ac&&playing){if(t<7){bo=false;dr.gain.setTargetAtTime(.06,ac.currentTime,.1);dro.frequency.setTargetAtTime(110,ac.currentTime,.1)}else if(!bo){bo=true;dr.gain.setTargetAtTime(0,ac.currentTime,.8);dro.frequency.setTargetAtTime(20,ac.currentTime,1);tone(90,1.5,.25)}if(t>12&&Math.random()<.05)tone(4000+Math.random()*600,.04,.03)}requestAnimationFrame(loop)}
+const b=document.getElementById('b'),m=document.getElementById('m');
+function toggle(){if(t>=DUR){t=0;last=-1}
+playing=!playing;if(playing){aInit();t0=performance.now()-t*1000;b.textContent='⏸ Пауза';if(last>=0)say(L[last][1])}else{b.textContent='▶ Дальше';if(ac)ac.suspend();if('speechSynthesis' in window)speechSynthesis.cancel()}}
+b.onclick=cv.onclick=toggle;
+m.onclick=()=>{mute=!mute;if(mg)mg.gain.value=mute?0:.5;m.textContent=mute?'🔇':'🔊';if(mute&&'speechSynthesis' in window)speechSynthesis.cancel()};
+loop();
+</script></body></html>
